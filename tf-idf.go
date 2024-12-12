@@ -10,10 +10,17 @@ func findBestMatches(inputTokens []string, kb KnowledgeBase) []Question {
 
 	// Cache TF-IDF untuk pertanyaan dalam KnowledgeBase
 	questionTFIDFCache := make(map[string]map[string]float64)
+	isSingleQuestion := len(kb.Questions) == 1
+	idfAvailable := len(kb.IDF) > 0
 	for _, question := range kb.Questions {
 		questionTokens := tokenize(question.Question)
 		questionTF := termFrequency(questionTokens)
-		questionTFIDFCache[question.Question] = tfidfScore(questionTF, kb.IDF)
+		if isSingleQuestion || !idfAvailable {
+			// Gunakan TF langsung jika hanya satu pertanyaan atau tidak ada data IDF
+			questionTFIDFCache[question.Question] = questionTF
+		} else {
+			questionTFIDFCache[question.Question] = tfidfScore(questionTF, kb.IDF)
+		}
 	}
 
 	start := 0
@@ -35,7 +42,12 @@ func findBestMatches(inputTokens []string, kb KnowledgeBase) []Question {
 
 			subTokens := inputTokens[start:end]
 			subTF := termFrequency(subTokens)
-			subTFIDF := tfidfScore(subTF, kb.IDF)
+			var subTFIDF map[string]float64
+			if isSingleQuestion || !idfAvailable {
+				subTFIDF = subTF
+			} else {
+				subTFIDF = tfidfScore(subTF, kb.IDF)
+			}
 
 			for _, question := range kb.Questions {
 				questionTFIDF := questionTFIDFCache[question.Question]
@@ -112,7 +124,9 @@ func inverseDocumentFrequency(corpus [][]string) map[string]float64 {
 func tfidfScore(tf map[string]float64, idf map[string]float64) map[string]float64 {
 	tfidf := make(map[string]float64)
 	for word, tfValue := range tf {
-		tfidf[word] = tfValue * idf[word]
+		if idfValue, exists := idf[word]; exists {
+			tfidf[word] = tfValue * idfValue
+		}
 	}
 	return tfidf
 }
